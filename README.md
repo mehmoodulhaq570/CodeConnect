@@ -23,31 +23,184 @@ A modern developer community platform built with React, TypeScript, and Supabase
 - ✅ File uploads
 - ✅ Responsive design
 
+## 📁 Project Structure
+
+```
+CodeConnect/
+├── frontend/                    # React application
+│   ├── src/
+│   │   ├── lib/supabase.ts     # Supabase client configuration
+│   │   ├── services/           # API services
+│   │   ├── contexts/           # React contexts (Auth)
+│   │   ├── pages/              # React pages
+│   │   └── components/         # React components
+│   ├── supabase/               # Supabase configuration
+│   │   ├── config.toml         # Local development config
+│   │   ├── migrations/         # Database migrations
+│   │   ├── functions/          # Edge Functions
+│   │   └── seed.sql           # Sample data
+│   └── .env.example           # Environment variables template
+└── README.md                  # This file
+```
+
 ## 🛠️ Setup Instructions
 
 ### 1. Clone the Repository
 
 ```bash
 git clone <your-repo-url>
-cd CodeConnect
+cd CodeConnect/frontend
 ```
 
 ### 2. Install Dependencies
 
 ```bash
-cd frontend
 npm install
 ```
 
 ### 3. Set up Supabase
 
+#### Option A: Use Existing Supabase Project
 1. Create a new Supabase project at [supabase.com](https://supabase.com)
 2. Go to Settings > API and copy your Project URL and Anon Key
-3. Run the database schema from `database/schema.sql` in the Supabase SQL Editor
+3. Run the database schema from `supabase/migrations/20231118000000_initial_schema.sql` in the Supabase SQL Editor
+
+#### Option B: Local Development with Supabase CLI
+1. Install Supabase CLI: `npm install -g supabase`
+2. Start local services: `supabase start`
+3. Apply migrations: `supabase db reset`
 
 ### 4. Configure Environment Variables
 
 Create a `.env` file in the `frontend` directory:
+
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+### 5. Run the Application
+
+```bash
+npm run dev
+```
+
+The app will be available at `http://localhost:5173`
+
+## 🔐 Authentication Setup
+
+### Enable OAuth Providers (Optional)
+
+1. Go to your Supabase dashboard
+2. Navigate to Authentication > Providers
+3. Enable Google and/or GitHub
+4. Configure OAuth credentials
+5. Set redirect URLs to your domain
+
+## 🗄️ Database Schema
+
+The application uses these main tables:
+
+- **profiles** - User profiles (auto-created from auth.users)
+- **posts** - Code posts with snippets and metadata
+- **likes** - Post likes with user relationships
+- **comments** - Post comments
+
+All tables have Row Level Security (RLS) policies for data protection.
+
+## ⚡ Edge Functions
+
+Serverless functions for custom backend logic:
+
+```bash
+# Create new function
+supabase functions new my-function
+
+# Deploy function
+supabase functions deploy my-function
+
+# Test locally
+supabase functions serve
+```
+
+## 🎨 Styling
+
+The app uses Tailwind CSS with custom utility classes:
+
+- `btn-primary` - Primary button styling
+- `post-card` - Post card container
+- `card` - Generic card styling
+
+## 🚀 Deployment
+
+### Frontend Deployment
+
+Deploy to Vercel, Netlify, or any static hosting:
+
+```bash
+npm run build
+```
+
+### Supabase Deployment
+
+```bash
+# Link to your project
+supabase link --project-ref your-project-ref
+
+# Push database changes
+supabase db push
+
+# Deploy functions
+supabase functions deploy
+```
+
+## 🔧 Development
+
+### Local Development
+
+```bash
+# Start Supabase services
+supabase start
+
+# Start React app
+npm run dev
+
+# View Supabase Studio
+open http://localhost:54323
+```
+
+### Database Changes
+
+```bash
+# Create new migration
+supabase migration new migration_name
+
+# Apply migrations
+supabase db reset
+
+# Generate TypeScript types
+supabase gen types typescript --local > src/types/supabase.ts
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **Blank page**: Check if environment variables are set correctly
+2. **Auth not working**: Verify Supabase URL and keys
+3. **Database errors**: Ensure migrations are applied
+4. **OAuth issues**: Check redirect URLs in Supabase dashboard
+
+### Demo Mode
+
+The app runs in demo mode when Supabase is not configured, showing sample content.
+
+## 📚 Learn More
+
+- [Supabase Documentation](https://supabase.com/docs)
+- [React Documentation](https://react.dev)
+- [Tailwind CSS](https://tailwindcss.com)
+- [Vite Documentation](https://vitejs.dev)
 
 ```env
 VITE_SUPABASE_URL=your_supabase_project_url
