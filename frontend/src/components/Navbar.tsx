@@ -1,14 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const Navbar: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      navigate('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   return (
@@ -54,9 +62,10 @@ const Navbar: React.FC = () => {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="btn-secondary text-sm"
+                  disabled={isLoggingOut}
+                  className="btn-secondary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Logout
+                  {isLoggingOut ? 'Logging out...' : 'Logout'}
                 </button>
               </div>
             ) : (
@@ -65,7 +74,7 @@ const Navbar: React.FC = () => {
                   Login
                 </Link>
                 <Link to="/register" className="btn-primary text-sm">
-                  Register
+                  Sign Up
                 </Link>
               </div>
             )}

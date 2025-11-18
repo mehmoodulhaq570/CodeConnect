@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { postService } from '../services/postService';
+import { postService, likeService } from '../services/supabaseService';
+import { isSupabaseConfigured } from '../lib/supabase';
 import { Post } from '../types';
 
 const Home: React.FC = () => {
@@ -14,10 +15,38 @@ const Home: React.FC = () => {
     const fetchPosts = async () => {
       try {
         setLoading(true);
+        
+        // If Supabase is not configured, show demo content
+        if (!isSupabaseConfigured()) {
+          // Mock posts for demo
+          const mockPosts: Post[] = [
+            {
+              id: '1',
+              user_id: 'demo-user',
+              title: 'Welcome to CodeConnect!',
+              content: 'This is a demo post. To see real posts and use authentication, please set up your Supabase environment variables.',
+              code_snippet: 'console.log("Hello, CodeConnect!");',
+              language: 'javascript',
+              author: {
+                id: 'demo-user',
+                username: 'Demo User',
+                email: 'demo@example.com',
+                profilePicture: null,
+              },
+              likesCount: 5,
+              likes: [],
+              created_at: new Date().toISOString(),
+            },
+          ];
+          setPosts(mockPosts);
+          setLoading(false);
+          return;
+        }
+        
         const response = await postService.getPosts();
-        setPosts(response.data);
+        setPosts(response);
       } catch (error: any) {
-        setError(error.response?.data?.message || 'Failed to fetch posts');
+        setError(error.message || 'Failed to fetch posts');
       } finally {
         setLoading(false);
       }
@@ -27,26 +56,39 @@ const Home: React.FC = () => {
   }, []);
 
   const handleLike = async (postId: string) => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !user) return;
+    
+    if (!isSupabaseConfigured()) {
+      alert('Supabase not configured. Please set up environment variables to use this feature.');
+      return;
+    }
     
     try {
-      const post = posts.find(p => p._id === postId);
+      const post = posts.find(p => p.id === postId);
       if (!post) return;
 
-      const isLiked = post.likes.some(like => like.id === user?.id);
+      const isLiked = post.likes?.some(like => like.id === user.id) || false;
       
       if (isLiked) {
-        await postService.unlikePost(postId);
+        await likeService.unlikePost(user.id, postId);
         setPosts(posts.map(p => 
-          p._id === postId 
-            ? { ...p, likes: p.likes.filter(like => like.id !== user?.id), likeCount: p.likeCount - 1 }
+          p.id === postId 
+            ? { 
+                ...p, 
+                likes: (p.likes || []).filter(like => like.id !== user.id), 
+                likeCount: (p.likeCount || 0) - 1 
+              }
             : p
         ));
       } else {
-        await postService.likePost(postId);
+        await likeService.likePost(user.id, postId);
         setPosts(posts.map(p => 
-          p._id === postId 
-            ? { ...p, likes: [...p.likes, user!], likeCount: p.likeCount + 1 }
+          p.id === postId 
+            ? { 
+                ...p, 
+                likes: [...(p.likes || []), user], 
+                likeCount: (p.likeCount || 0) + 1 
+              }
             : p
         ));
       }
@@ -75,6 +117,17 @@ const Home: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
+      {!isSupabaseConfigured() && (
+        <div className="mb-6 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded">
+          <h3 className="font-semibold">⚠️ Demo Mode</h3>
+          <p className="text-sm mt-1">
+            Supabase is not configured. Please set up your environment variables to enable full functionality.
+            <br />
+            <strong>Steps:</strong> Copy <code>.env.example</code> to <code>.env</code> and add your Supabase credentials.
+          </p>
+        </div>
+      )}
+      
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to CodeConnect</h1>
         <p className="text-gray-600">
@@ -111,7 +164,7 @@ const Home: React.FC = () => {
       ) : (
         <div className="space-y-4">
           {posts.map((post) => (
-            <div key={post._id} className="post-card">
+            <div key={post.id} className="post-card">
               <div className="flex items-start space-x-3 mb-4">
                 <img
                   src={post.author.profilePicture || `https://ui-avatars.com/api/?name=${post.author.username}&background=3b82f6&color=fff`}
@@ -127,7 +180,7 @@ const Home: React.FC = () => {
                       {post.author.username}
                     </Link>
                     <span className="text-gray-500 text-sm">
-                      {new Date(post.createdAt).toLocaleDateString()}
+                      {new Date(post.created_at || post.createdAt || '').toLocaleDateString()}
                     </span>
                     {post.isEdited && (
                       <span className="text-gray-400 text-sm">(edited)</span>
@@ -137,31 +190,32 @@ const Home: React.FC = () => {
               </div>
 
               <div className="mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">{post.title}</h3>
                 <p className="text-gray-800 whitespace-pre-wrap">{post.content}</p>
               </div>
 
-              {post.codeSnippet && (
+              {post.code_snippet && (
                 <div className="mb-4">
                   <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs text-gray-400 font-medium">
-                        {post.codeSnippet.language}
+                        {post.language || 'code'}
                       </span>
                       <button
-                        onClick={() => navigator.clipboard.writeText(post.codeSnippet?.code || '')}
+                        onClick={() => navigator.clipboard.writeText(post.code_snippet || '')}
                         className="text-xs text-gray-400 hover:text-white transition-colors"
                       >
                         Copy
                       </button>
                     </div>
                     <pre className="text-sm text-gray-300">
-                      <code>{post.codeSnippet.code}</code>
+                      <code>{post.code_snippet}</code>
                     </pre>
                   </div>
                 </div>
               )}
 
-              {post.tags.length > 0 && (
+              {post.tags && post.tags.length > 0 && (
                 <div className="mb-4 flex flex-wrap gap-2">
                   {post.tags.map((tag, index) => (
                     <span
@@ -178,9 +232,9 @@ const Home: React.FC = () => {
                 <div className="flex items-center space-x-4">
                   {isAuthenticated && (
                     <button
-                      onClick={() => handleLike(post._id)}
+                      onClick={() => handleLike(post.id)}
                       className={`flex items-center space-x-1 transition-colors ${
-                        post.likes.some(like => like.id === user?.id)
+                        post.likes?.some(like => like.id === user?.id)
                           ? 'text-red-600 hover:text-red-700'
                           : 'text-gray-500 hover:text-red-600'
                       }`}
@@ -188,17 +242,17 @@ const Home: React.FC = () => {
                       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" />
                       </svg>
-                      <span className="text-sm">{post.likeCount}</span>
+                      <span className="text-sm">{post.likesCount || post.likeCount || 0}</span>
                     </button>
                   )}
                   <Link 
-                    to={`/post/${post._id}`}
+                    to={`/post/${post.id}`}
                     className="flex items-center space-x-1 text-gray-500 hover:text-primary-600 transition-colors"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
-                    <span className="text-sm">{post.commentCount}</span>
+                    <span className="text-sm">{post.commentCount || 0}</span>
                   </Link>
                 </div>
               </div>
