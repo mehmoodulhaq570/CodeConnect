@@ -1,17 +1,36 @@
-import React, { useState, FormEvent } from "react";
+import { useState, FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import toast, { Toaster } from "react-hot-toast";
 import { useAuth } from "../contexts/AuthContext";
 import { postService } from "../services/supabaseService";
 import { isSupabaseConfigured } from "../lib/supabase";
 
-const CreatePost: React.FC = () => {
+const languages = [
+  "javascript",
+  "typescript",
+  "python",
+  "java",
+  "csharp",
+  "cpp",
+  "c",
+  "ruby",
+  "go",
+  "rust",
+  "php",
+  "swift",
+  "kotlin",
+  "html",
+  "css",
+  "sql",
+];
+
+export default function CreatePost() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [codeSnippet, setCodeSnippet] = useState("");
   const [language, setLanguage] = useState("javascript");
   const [tags, setTags] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -19,18 +38,19 @@ const CreatePost: React.FC = () => {
     e.preventDefault();
 
     if (!isSupabaseConfigured()) {
-      setError("Supabase not configured. Please set up environment variables.");
+      toast.error(
+        "Supabase not configured. Please set up environment variables."
+      );
       return;
     }
 
     if (!user) {
-      setError("You must be logged in to create a post");
+      toast.error("You must be logged in to create a post");
       return;
     }
 
     try {
       setLoading(true);
-      setError("");
 
       const postData = {
         user_id: user.id,
@@ -47,36 +67,19 @@ const CreatePost: React.FC = () => {
       };
 
       await postService.createPost(postData);
+      toast.success("Post created successfully!");
       navigate("/home");
     } catch (error: any) {
       console.error("Error creating post:", error);
-      setError(error.message || "Failed to create post");
+      toast.error(error.message || "Failed to create post");
     } finally {
       setLoading(false);
     }
   };
 
-  const languages = [
-    "javascript",
-    "typescript",
-    "python",
-    "java",
-    "csharp",
-    "cpp",
-    "c",
-    "ruby",
-    "go",
-    "rust",
-    "php",
-    "swift",
-    "kotlin",
-    "html",
-    "css",
-    "sql",
-  ];
-
   return (
     <div className="max-w-4xl mx-auto">
+      <Toaster position="top-center" reverseOrder={false} />
       <div className="bg-white rounded-lg shadow-md p-8">
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-gray-900">Create New Post</h2>
@@ -84,12 +87,6 @@ const CreatePost: React.FC = () => {
             Share your code and insights with the community
           </p>
         </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
@@ -206,6 +203,4 @@ const CreatePost: React.FC = () => {
       </div>
     </div>
   );
-};
-
-export default CreatePost;
+}

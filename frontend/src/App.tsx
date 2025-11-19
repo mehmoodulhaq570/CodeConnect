@@ -5,6 +5,8 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
+import { ReactElement } from "react";
+import { Toaster } from "react-hot-toast";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
@@ -14,7 +16,7 @@ import PostDetail from "./pages/PostDetail";
 import CreatePost from "./pages/CreatePost";
 
 // Protected Route component
-const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
+const ProtectedRoute = ({ children }: { children: ReactElement }) => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
@@ -29,7 +31,7 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
 };
 
 // Public Route component (redirects to home if already authenticated)
-const PublicRoute = ({ children }: { children: JSX.Element }) => {
+const PublicRoute = ({ children }: { children: ReactElement }) => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
@@ -114,6 +116,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <Toaster position="top-center" reverseOrder={false} />
         <AppContent />
       </Router>
     </AuthProvider>

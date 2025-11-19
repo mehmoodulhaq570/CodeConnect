@@ -110,19 +110,84 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return;
     }
 
-    // Get initial session
+    let refreshTimer: NodeJS.Timeout;
+    let inactivityTimer: NodeJS.Timeout;
+    const INACTIVITY_TIMEOUT = 60 * 60 * 1000; // 1 hour
+
+    // Track user activity
+    const resetInactivityTimer = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+
+      inactivityTimer = setTimeout(async () => {
+        console.log("User inactive for 1 hour, logging out...");
+        await supabase.auth.signOut();
+        dispatch({ type: "LOGOUT" });
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    // Listen for user activity
+    const activityEvents = [
+      "mousedown",
+      "keydown",
+      "scroll",
+      "touchstart",
+      "click",
+    ];
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, resetInactivityTimer);
+    });
+
+    // Start inactivity timer
+    resetInactivityTimer();
+
+    // Get initial session and validate it
     const getInitialSession = async () => {
       try {
         const {
           data: { session },
+          error,
         } = await supabase.auth.getSession();
 
+        if (error) {
+          console.error("Session error:", error);
+          dispatch({ type: "AUTH_FAILURE", payload: "" });
+          return;
+        }
+
         if (session?.user) {
+          // Check if session is expired
+          const expiresAt = session.expires_at ? session.expires_at * 1000 : 0;
+          const now = Date.now();
+
+          if (expiresAt && now >= expiresAt) {
+            // Session expired, force logout
+            console.log("Session expired, logging out...");
+            await supabase.auth.signOut();
+            dispatch({ type: "LOGOUT" });
+            return;
+          }
+
           const user = mapSupabaseUser(session.user);
           dispatch({ type: "AUTH_SUCCESS", payload: user });
 
           // Create or update profile in database
           await upsertProfile(user);
+
+          // Set up token refresh timer (refresh 5 minutes before expiry)
+          if (expiresAt) {
+            const timeUntilRefresh = Math.max(
+              0,
+              expiresAt - now - 5 * 60 * 1000
+            );
+            refreshTimer = setTimeout(async () => {
+              const { data, error } = await supabase.auth.refreshSession();
+              if (error) {
+                console.error("Token refresh failed:", error);
+                await supabase.auth.signOut();
+                dispatch({ type: "LOGOUT" });
+              }
+            }, timeUntilRefresh);
+          }
         } else {
           dispatch({ type: "AUTH_FAILURE", payload: "" });
         }
@@ -135,16 +200,61 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state changed:", event);
+
       try {
-        if (session?.user) {
+        if (event === "SIGNED_OUT" || event === "USER_DELETED") {
+          dispatch({ type: "LOGOUT" });
+          if (refreshTimer) clearTimeout(refreshTimer);
+          return; // Exit early
+        }
+
+        if (event === "TOKEN_REFRESHED") {
+          // Don't update UI for token refresh, just reset timer
+          if (session?.user && session.expires_at) {
+            if (refreshTimer) clearTimeout(refreshTimer);
+            const expiresAt = session.expires_at * 1000;
+            const now = Date.now();
+            const timeUntilRefresh = Math.max(
+              0,
+              expiresAt - now - 5 * 60 * 1000
+            );
+            refreshTimer = setTimeout(async () => {
+              const { error } = await supabase.auth.refreshSession();
+              if (error) {
+                console.error("Token refresh failed:", error);
+                await supabase.auth.signOut();
+                dispatch({ type: "LOGOUT" });
+              }
+            }, timeUntilRefresh);
+          }
+          return; // Don't trigger full update
+        }
+
+        if (event === "SIGNED_IN" && session?.user) {
           const user = mapSupabaseUser(session.user);
           dispatch({ type: "AUTH_SUCCESS", payload: user });
-
-          // Create or update profile in database
           await upsertProfile(user);
-        } else {
-          dispatch({ type: "LOGOUT" });
+
+          // Set up new refresh timer
+          if (refreshTimer) clearTimeout(refreshTimer);
+          const expiresAt = session.expires_at ? session.expires_at * 1000 : 0;
+          const now = Date.now();
+          if (expiresAt) {
+            const timeUntilRefresh = Math.max(
+              0,
+              expiresAt - now - 5 * 60 * 1000
+            );
+            refreshTimer = setTimeout(async () => {
+              const { error } = await supabase.auth.refreshSession();
+              if (error) {
+                console.error("Token refresh failed:", error);
+                await supabase.auth.signOut();
+                dispatch({ type: "LOGOUT" });
+              }
+            }, timeUntilRefresh);
+          }
         }
       } catch (error) {
         console.error("Auth state change error:", error);
@@ -154,20 +264,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     getInitialSession();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      if (refreshTimer) clearTimeout(refreshTimer);
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, resetInactivityTimer);
+      });
+    };
   }, []);
 
   const upsertProfile = async (user: User) => {
     if (!isSupabaseConfigured()) return;
 
     try {
-      const { error } = await supabase.from("profiles").upsert({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        avatar_url: user.profilePicture,
-        updated_at: new Date().toISOString(),
-      });
+      const { error } = await supabase.from("profiles").upsert(
+        {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          avatar_url: user.profilePicture,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "id",
+          ignoreDuplicates: false,
+        }
+      );
 
       if (error) {
         console.error("Error upserting profile:", error);

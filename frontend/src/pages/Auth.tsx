@@ -1,4 +1,4 @@
-import React, { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
@@ -6,7 +6,7 @@ import toast, { Toaster } from "react-hot-toast";
 
 type TabType = "signin" | "signup";
 
-const Auth: React.FC = () => {
+export default function Auth() {
   const location = useLocation();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>(
@@ -26,12 +26,12 @@ const Auth: React.FC = () => {
   const [formError, setFormError] = useState("");
   const { login, register, loading, error, clearError } = useAuth();
 
-  React.useEffect(() => {
+  useEffect(() => {
     clearError();
     setFormError("");
   }, [activeTab, clearError]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     // Update tab based on route
     if (location.pathname === "/register") {
       setActiveTab("signup");
@@ -438,6 +438,4 @@ const Auth: React.FC = () => {
       <Toaster position="top-center" reverseOrder={false} />
     </div>
   );
-};
-
-export default Auth;
+}

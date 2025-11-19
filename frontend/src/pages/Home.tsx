@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import toast, { Toaster } from "react-hot-toast";
 import { useAuth } from "../contexts/AuthContext";
 import { postService, likeService } from "../services/supabaseService";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { Post } from "../types";
 
-const Home: React.FC = () => {
+export default function Home() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -57,10 +58,13 @@ const Home: React.FC = () => {
   }, []);
 
   const handleLike = async (postId: string) => {
-    if (!isAuthenticated || !user) return;
+    if (!isAuthenticated || !user) {
+      toast.error("Please sign in to like posts");
+      return;
+    }
 
     if (!isSupabaseConfigured()) {
-      alert(
+      toast.error(
         "Supabase not configured. Please set up environment variables to use this feature."
       );
       return;
@@ -87,6 +91,7 @@ const Home: React.FC = () => {
         );
       } else {
         await likeService.likePost(user.id, postId);
+        toast.success("Post liked!");
         setPosts(
           posts.map((p) =>
             p.id === postId
@@ -101,6 +106,7 @@ const Home: React.FC = () => {
       }
     } catch (error) {
       console.error("Failed to toggle like:", error);
+      toast.error("Failed to update like. Please try again.");
     }
   };
 
@@ -124,6 +130,7 @@ const Home: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
+      <Toaster position="top-center" reverseOrder={false} />
       {!isSupabaseConfigured() && (
         <div className="mb-6 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded">
           <h3 className="font-semibold">⚠️ Demo Mode</h3>
@@ -246,9 +253,12 @@ const Home: React.FC = () => {
                         {post.language || "code"}
                       </span>
                       <button
-                        onClick={() =>
-                          navigator.clipboard.writeText(post.code_snippet || "")
-                        }
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            post.code_snippet || ""
+                          );
+                          toast.success("Code copied to clipboard!");
+                        }}
                         className="text-xs text-gray-400 hover:text-white transition-colors"
                       >
                         Copy
@@ -324,6 +334,4 @@ const Home: React.FC = () => {
       )}
     </div>
   );
-};
-
-export default Home;
+}
